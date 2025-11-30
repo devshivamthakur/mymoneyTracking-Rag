@@ -15,6 +15,10 @@ class Settings(BaseSettings):
     algorithm: str
     ACCESS_TOKEN_EXPIRE_MINUTES: str
     REFRESH_TOKEN_EXPIRE_MINUTES: str
+    QDRANT_URL: str
+    QDRANT_API_KEY: str
+    QDRANT_COLLECTION_NAME: str
+    HUGGING_FACE_TOKEN:str
 
     # Pydantic v2 config
     model_config = SettingsConfigDict(

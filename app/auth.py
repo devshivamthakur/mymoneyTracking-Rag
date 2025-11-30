@@ -13,10 +13,8 @@ from fastapi import Request, HTTPException, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 def create_access_token(subject: Union[str, Any]) -> str:
-    print("Creating access token for subject:", subject, "with settings:", settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     # Use provided delta or fallback to settings
     expire_minutes = float(settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    
     expire = datetime.now(timezone.utc) + timedelta(minutes=expire_minutes)
 
     to_encode = {
@@ -98,6 +96,9 @@ def validate_refersh_token(token: str):
          refreshToken = create_refresh_token(payload.get("sub"))
          return {"access_token": accessToken, "refresh_token": refreshToken}
     except JWTError:
-        return None
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Invalid refresh token",
+        )
     
 jwt_bearer = JWTBearer()
