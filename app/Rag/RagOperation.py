@@ -1,138 +1,104 @@
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from app.FirebaseOperations import get_transactions
-from langchain_qdrant import QdrantVectorStore
-from langchain_huggingface import HuggingFaceEndpointEmbeddings
+from app.FirebaseOperations import query_firestore_generic_extended
 from langchain_huggingface import HuggingFaceEndpoint, ChatHuggingFace
 from config import settings
 from app.Validator import chatStreamRequest
 from langchain_core.documents import Document    
-from datetime import date, datetime, timedelta, time
 from langchain_core.prompts import PromptTemplate
 import aiohttp
 import ssl
+from app.Rag.OutputModal import pyOutPutParser2
 
 ssl_context = ssl.create_default_context()
 ssl_context.check_hostname = False
 ssl_context.verify_mode = ssl.CERT_NONE
 
 session = aiohttp.ClientSession(connector=aiohttp.TCPConnector(ssl=ssl_context))
-
-embedding_model_id = "BAAI/bge-small-en"  # You can change to another HF embedding model
-emabdding_llm = HuggingFaceEndpointEmbeddings(repo_id=embedding_model_id, huggingfacehub_api_token=settings.HUGGING_FACE_TOKEN)
 llm_endpoint = HuggingFaceEndpoint(
-        repo_id="Qwen/Qwen3-Next-80B-A3B-Instruct",  # Replace with any HF LLM you want
+        repo_id="mistralai/Mistral-7B-Instruct-v0.2",  # Replace with any HF LLM you want
         task="text-generation",
-        max_new_tokens=150,
         temperature=0.5,
         huggingfacehub_api_token=settings.HUGGING_FACE_TOKEN,
         streaming=True,
         client=session
     )   
-def preprocess_dataset(docs_list):
-    text_splitter = RecursiveCharacterTextSplitter(
-        chunk_size=700,
-        chunk_overlap=50,
+
+def generateFirebaseFilter(query: str):
+    llm_endpoint = HuggingFaceEndpoint(
+    repo_id="Qwen/Qwen3-Next-80B-A3B-Instruct",  # Updated to top-performing model for structured output
+    task="text-generation",
+    max_new_tokens=200,  # Increased to allow more room for JSON output
+    temperature=0.3,     # Lower temperature for more deterministic/JSON-compliant output
+    top_p=0.95,          # Optional: keep output focused
+    huggingfacehub_api_token=settings.HUGGING_FACE_TOKEN,
+    client=session
     )
-    doc_splits = text_splitter.split_documents(docs_list)
-    return doc_splits
+    prompt = PromptTemplate(
+        template="""
+You convert natural language into a structured Firestore query filter.
 
-def storeInVectorDB(doc_splits, userId):
-    print("docs started here")
-    return QdrantVectorStore.from_documents(
-        doc_splits,
-        emabdding_llm,
-        url=settings.QDRANT_URL,
-        api_key=settings.QDRANT_API_KEY,
-        collection_name=f"{settings.QDRANT_COLLECTION_NAME}_{userId}",
-        prefer_grpc=True,
-        force_recreate = True,
+User query:
+{query}
 
+Your job:
+1. Interpret the user query.
+2. Convert it into a structured Firestore filter object.
+3. Use operators such as: eq, in, gte, lte, lt, gt.
+4. Only use these allowed Firestore fields:
+   - date (integer ms timestamp)
+   - category
+   - amount
+   - month ("MMM")
+5. If no month is detected → set isAllData = True
+6. Output only the structure required by the parser.
+
+{format_ins}
+""",
+        input_variables=["query"],
+        partial_variables={"format_ins": pyOutPutParser2.get_format_instructions()}
     )
 
-def fetchRetriever(userId):
-    retriever = QdrantVectorStore.from_existing_collection(
-        api_key=settings.QDRANT_API_KEY,
-        collection_name=f"{settings.QDRANT_COLLECTION_NAME}_{userId}",
-        embedding=emabdding_llm,
-        url=settings.QDRANT_URL,
+    chat_model = ChatHuggingFace(llm=llm_endpoint)
 
-    )
-    return retriever
+    chain = prompt | chat_model | pyOutPutParser2
 
-async def generateEmbedding(query):
-    embedding = await emabdding_llm.aembed_query(query)
-    return embedding
+    result = chain.invoke({"query": query})
 
-def process_documents(userId):
-    docs_list = get_transactions(userId)
-    #convert dict into array of object
-    docs = [
-        Document(
-            page_content=(
-                f"amoun {doc['amount']} spent on {datetime.fromtimestamp(doc['date'] / 1000)} "
-                f"for {doc.get('discrption', '')} in ({doc['category']}) category"
-            ),
-            metadata={
-                'userId': userId,
-                'amount': doc['amount'],
-                'timestamp': datetime.fromtimestamp(doc['date'] / 1000).isoformat(),
-                'category': doc['category']
-            }
-        )
-        for doc in docs_list
-    ]
-    doc_splits = preprocess_dataset(docs)
-    return storeInVectorDB(doc_splits, userId)
+    return result.dict()
 
-async def search_expense_vectors(user_id: str, query, top_k: int = 5):
-    retriever = fetchRetriever(user_id)
-    query_embadding = await generateEmbedding(query)
-    docs= retriever.search(
-        query=query,
-        search_type="mmr"
-        
-    )
-    # mmr_retriever = retriever.as_retriever(
-    #     search_type="mmr",
-    #     search_kwargs={"k": top_k}
-    # )
+    
+async def rag_query_stream(query:str, user: str):
 
-    # # MMR search returns documents
-    # docs = mmr_retriever
-    # docs = retriever.similarity_search(query)
-    return docs
-
-def build_expense_context(retrieved_docs: list[Document]):
-    return "\n\n".join(doc.page_content for doc in retrieved_docs)
-
-async def rag_query_stream(query:chatStreamRequest, user: str):
-# LLM setup using Hugging Face Endpoint
-    # if(not query.session_id):
-    #     # fetch data from firebase based on user and store in the 
-    #     process_documents(user)
-
+    filters = generateFirebaseFilter(query)
+    context = query_firestore_generic_extended(user, filters)
     chat_model = ChatHuggingFace(llm=llm_endpoint)
     prompt = PromptTemplate(
         template="""
-    You are a finance assistant. Use expenses.
-    If the context is insufficient, just say you don't know.
+    You are a knowledgeable finance assistant helping users analyze their expenses and manage finances effectively.
 
-    expenses: {context}
-    Question: {question}
+    You are given a list of user expenses in JSON format. Use the data to provide detailed and actionable insights. Be concise, clear, and structured in your response. If the data does not contain enough information, clearly state that.
+
+    Expenses data: {context}
+
+    User question: {question}
+
+    Instructions:
+    - Summarize key insights from the expenses.
+    - Highlight unusual or significant expenses.
+    - Suggest ways to optimize spending or save money.
+    - Provide examples if relevant.
+    - Keep the response professional and easy to understand.
+    - and Amount will always be in rupee 
+    - do not send any unnecessary response (send only meaning and required response)
+
+    Answer:
     """,
         input_variables=["context", "question"]
     )
 
-    #2 vectore search
-    docs = await search_expense_vectors(user, query.query)
-    context = build_expense_context(docs)
-    print(context)
     chain = prompt | chat_model
-    
-    
+        
     return chain.astream({
         'context': context,
-        "question": query.query
-    },      
-    
-    )     
+        "question": query
+    })     

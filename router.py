@@ -33,9 +33,14 @@ async def getUserTransactions(user = Depends(get_current_user)):
     return {"data": transactions, "message": "User transactions retrieved successfully."}
 
 #rag endpoint starting here
-@router.post("/chat/")
-async def chat_endpoint(query: chatStreamRequest, user = Depends(get_current_user)):
-    stream = await rag_query_stream(query, user)
+@router.get("/chat/")
+async def chat_endpoint(
+     userId: str = '',
+     query: str = '',
+     session_id: str = '', 
+     user = Depends(get_current_user)
+     ):
+    stream = await rag_query_stream(query, userId)
     async def event_gen():
         async for chunk in stream:
                 payload ={

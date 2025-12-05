@@ -3,6 +3,7 @@ from typing import Optional
 
 class chatStreamRequest(BaseModel):
     query: str = Field(..., description="The user's query for the chat stream.")
+    userId: str = Field(..., description="The user's id for the chat stream.")
     session_id: Optional[str] = Field(None, description="Optional session identifier.")
 
     @field_validator('query')
