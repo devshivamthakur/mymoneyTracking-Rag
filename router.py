@@ -4,7 +4,7 @@ from app.auth import jwt_bearer, get_current_user, validate_refersh_token
 from app.FirebaseOperations import validate_user, get_user_info
 from app.FirebaseOperations import get_transactions
 from app.Rag.RagOperation import rag_query_stream
-from fastapi.responses import StreamingResponse
+from sse_starlette import  EventSourceResponse
 import json
 
 router = APIRouter(prefix="/api/v1/user", tags=["User"])
@@ -32,30 +32,20 @@ async def getUserTransactions(user = Depends(get_current_user)):
     transactions = get_transactions(user)
     return {"data": transactions, "message": "User transactions retrieved successfully."}
 
-#rag endpoint starting here
 @router.get("/chat/")
 async def chat_endpoint(
      userId: str = '',
      query: str = '',
      session_id: str = '', 
      user = Depends(get_current_user)
-     ):
+):
     stream = await rag_query_stream(query, userId)
+
     async def event_gen():
         async for chunk in stream:
-                payload ={
-                    'event': 'message' ,
-                    'data': getattr(chunk, "content", str(chunk))
-                }
-                json_str = json.dumps(payload, ensure_ascii=False)
-                yield f'{json_str}\n\n'
+            yield f"{chunk.content}\n\n"
 
-        payload = {
-                    'event': 'END' ,
-                    'data': ''
-                  }
-        json_str = json.dumps(payload, ensure_ascii=False)    
-        yield f'{json_str}\n\n'         
+        yield "event: END\ndata: \n\n"
 
+    return EventSourceResponse(event_gen(), media_type="text/event-stream")
 
-    return StreamingResponse(event_gen(), media_type="text/event-stream")

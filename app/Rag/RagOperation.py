@@ -66,39 +66,53 @@ Your job:
 
     return result.dict()
 
-    
-async def rag_query_stream(query:str, user: str):
-
+async def rag_query_stream(query: str, user: str):
     filters = generateFirebaseFilter(query)
-    context = query_firestore_generic_extended(user, filters)
+    print(filters)
     chat_model = ChatHuggingFace(llm=llm_endpoint)
-    prompt = PromptTemplate(
-        template="""
+    prompt: PromptTemplate | None = None
+    params = {}
+    if (filters['isQueryToAppFinanceRelated']):
+        context = query_firestore_generic_extended(user, filters)
+        prompt = PromptTemplate(
+            template="""
     You are a knowledgeable finance assistant helping users analyze their expenses and manage finances effectively.
 
-    You are given a list of user expenses in JSON format. Use the data to provide detailed and actionable insights. Be concise, clear, and structured in your response. If the data does not contain enough information, clearly state that.
+    You are given a list of user expenses in JSON format. Use the data to provide detailed and actionable insights. Format your response using markdown for better readability.
 
-    Expenses data: {context}
+    **Expenses data:** {context}
 
-    User question: {question}
+    **User question:** {question}
 
-    Instructions:
-    - Summarize key insights from the expenses.
-    - Highlight unusual or significant expenses.
-    - Suggest ways to optimize spending or save money.
-    - Provide examples if relevant.
-    - Keep the response professional and easy to understand.
-    - and Amount will always be in rupee 
-    - do not send any unnecessary response (send only meaning and required response)
+    **Instructions:**
+    - Format your response using markdown headings, lists, and emphasis where appropriate
+    - Summarize key insights from the expenses
+    - Highlight unusual or significant expenses
+    - Suggest ways to optimize spending or save money
+    - Provide examples if relevant
+    - Keep the response professional and easy to understand
+    - All amounts are in Indian Rupees (₹)
+    - Only provide meaningful and required responses
 
-    Answer:
+    **Response:**
     """,
-        input_variables=["context", "question"]
-    )
-
+            input_variables=["context", "question"]
+        )
+        
+        params = {
+            'context': context,
+            "question": query
+        }
+    else:
+        prompt = PromptTemplate(
+            template="{question}",
+            input_variables=['question']
+        )
+        params = {
+            "question": query
+        }
+    
+    
     chain = prompt | chat_model
         
-    return chain.astream({
-        'context': context,
-        "question": query
-    })     
+    return chain.astream(params)

@@ -38,6 +38,28 @@ class FirestoreTransactionQuery(BaseModel):
         default=None,
         description="If month is not provided, this becomes True automatically."
     )
+    
+    isQueryToAppFinanceRelated: Optional[bool] = Field(
+        default=False,
+        description=(
+            "Determines whether the user’s query is related to personal/app finances.\n\n"
+            "Set to True WHEN the user's query involves financial information stored "
+            "in Firestore, such as:\n"
+            "- 'How much did I spend today?'\n"
+            "- 'Show my expenses for April.'\n"
+            "- 'What was my biggest purchase this week?'\n"
+            "- 'List my transactions with category Food.'\n"
+            "- 'How much did I earn last month?'\n\n"
+            "Set to False WHEN the user's query is general conversation or unrelated "
+            "to personal finance, such as:\n"
+            "- 'Hi', 'Hello', 'How are you?'\n"
+            "- 'Tell me a joke.'\n"
+            "- 'Explain machine learning.'\n"
+            "- Any question not requiring Firestore financial data.\n\n"
+            "If True → Firestore search will be executed.\n"
+            "If False → The query will be answered by another LLM without Firestore."
+        )
+    )
 
     @field_validator("month")
     def validate_month(cls, value):
@@ -68,8 +90,5 @@ class FirestoreTransactionQuery(BaseModel):
                     raise ValueError("date must be int or operator dict")
 
         return filters
-
-
-
 
 pyOutPutParser2 = PydanticOutputParser(pydantic_object=FirestoreTransactionQuery)
