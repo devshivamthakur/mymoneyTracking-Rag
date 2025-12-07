@@ -40,12 +40,46 @@ async def chat_endpoint(
      user = Depends(get_current_user)
 ):
     stream = await rag_query_stream(query, userId)
-
     async def event_gen():
         async for chunk in stream:
-            yield f"{chunk.content}\n\n"
+            content = chunk
+            if chunk == " ":
+                content = chunk.replace(" ", "&nbsp;")
+            response = json.dumps({"type": "content", "content": content})
+            yield f"{response}"
 
-        yield "event: END\ndata: \n\n"
+        yield "\n\n"
 
     return EventSourceResponse(event_gen(), media_type="text/event-stream")
+
+
+# 1. Define an async generator function
+async def event_generator():
+    import asyncio
+
+    # Simulated LLM output — tokenized manually for demo
+    tokens = [
+        "This", " ", "is", " ", "a", " ", "real-time", " ", 
+        "LangChain-style", " ", "response.", "\n\n",
+        "Here", " ", "is", " ", "a", " ", "Markdown", " ", "table:", "\n\n",
+        "| Name | Age | Role |\n",
+        "|------|-----|------|\n",
+        "| Alice | 30 | Engineer |\n",
+        "| Bob   | 25 | Designer |\n",
+        "| Carol | 28 | Manager |\n",
+        "\n",
+        "End", " ", "of", " ", "demo."
+    ]
+
+    for token in tokens:
+        # Preserve spaces with &nbsp; for HTML rendering
+        content = token
+        if token == "":
+            content = token.replace(" ", "&nbsp;")
+
+        response = json.dumps({"type": "content", "content": content})
+        yield f"{response}"
+        await asyncio.sleep(0.05)  # fast, real-time feel
+
+
 

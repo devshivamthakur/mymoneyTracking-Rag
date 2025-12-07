@@ -49,7 +49,7 @@ def query_firestore_generic_extended(userId: str, query_json: dict):
 
     month = query_json.get("month")
     isAllData = query_json.get("isAllData", False)
-    filters = query_json.get("filters", {}) or {}
+    filters = {}
     limit = query_json.get("limit")
 
     transactions = []

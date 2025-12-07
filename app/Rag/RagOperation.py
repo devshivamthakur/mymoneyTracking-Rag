@@ -8,6 +8,7 @@ from langchain_core.prompts import PromptTemplate
 import aiohttp
 import ssl
 from app.Rag.OutputModal import pyOutPutParser2
+from langchain_core.output_parsers import StrOutputParser
 
 ssl_context = ssl.create_default_context()
 ssl_context.check_hostname = False
@@ -17,10 +18,11 @@ session = aiohttp.ClientSession(connector=aiohttp.TCPConnector(ssl=ssl_context))
 llm_endpoint = HuggingFaceEndpoint(
         repo_id="mistralai/Mistral-7B-Instruct-v0.2",  # Replace with any HF LLM you want
         task="text-generation",
-        temperature=0.5,
+        temperature=0,
         huggingfacehub_api_token=settings.HUGGING_FACE_TOKEN,
         streaming=True,
-        client=session
+        client=session,
+        max_new_tokens=250,
     )   
 
 def generateFirebaseFilter(query: str):
@@ -68,7 +70,6 @@ Your job:
 
 async def rag_query_stream(query: str, user: str):
     filters = generateFirebaseFilter(query)
-    print(filters)
     chat_model = ChatHuggingFace(llm=llm_endpoint)
     prompt: PromptTemplate | None = None
     params = {}
@@ -80,19 +81,22 @@ async def rag_query_stream(query: str, user: str):
 
     You are given a list of user expenses in JSON format. Use the data to provide detailed and actionable insights. Format your response using markdown for better readability.
 
+    If the context is empty or not sufficient, return only an informational message. Do not infer or fabricate details.
     **Expenses data:** {context}
 
     **User question:** {question}
 
     **Instructions:**
-    - Format your response using markdown headings, lists, and emphasis where appropriate
-    - Summarize key insights from the expenses
     - Highlight unusual or significant expenses
     - Suggest ways to optimize spending or save money
-    - Provide examples if relevant
     - Keep the response professional and easy to understand
     - All amounts are in Indian Rupees (₹)
     - Only provide meaningful and required responses
+    - provide only text do not send any image or code some thing
+    - Do NOT output code, code blocks,
+    -Provide explanations, insights, and suggestions *only in natural language*.
+
+    most important the response must be with in max token of 150
 
     **Response:**
     """,
@@ -113,6 +117,6 @@ async def rag_query_stream(query: str, user: str):
         }
     
     
-    chain = prompt | chat_model
+    chain = prompt | chat_model | StrOutputParser()
         
     return chain.astream(params)
