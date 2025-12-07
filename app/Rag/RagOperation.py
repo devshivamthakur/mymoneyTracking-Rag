@@ -27,7 +27,7 @@ llm_endpoint = HuggingFaceEndpoint(
 
 def generateFirebaseFilter(query: str):
     llm_endpoint = HuggingFaceEndpoint(
-    repo_id="Qwen/Qwen3-Next-80B-A3B-Instruct",  # Updated to top-performing model for structured output
+    repo_id="mistralai/Mistral-7B-Instruct-v0.2",  # Updated to top-performing model for structured output
     task="text-generation",
     max_new_tokens=200,  # Increased to allow more room for JSON output
     temperature=0.3,     # Lower temperature for more deterministic/JSON-compliant output
