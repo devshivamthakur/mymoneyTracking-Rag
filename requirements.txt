@@ -67,7 +67,6 @@ langchain-core==1.1.0
 langchain-huggingface==1.1.0
 langchain-qdrant==1.1.0
 langchain-text-splitters==1.0.0
-langsmith==0.4.49
 loguru==0.7.3
 markdown-it-py==4.0.0
 MarkupSafe==3.0.3
@@ -113,7 +112,6 @@ python-dateutil==2.9.0.post0
 python-dotenv==1.2.1
 python-jose==3.5.0
 python-multipart==0.0.20
-pywin32==311
 PyYAML==6.0.3
 qdrant-client==1.16.1
 rank-bm25==0.2.2
@@ -150,7 +148,6 @@ uvicorn==0.38.0
 watchfiles==1.1.1
 websocket-client==1.9.0
 websockets==15.0.1
-win32_setctime==1.2.0
 wrapt==2.0.1
 xxhash==3.6.0
 yarl==1.22.0
