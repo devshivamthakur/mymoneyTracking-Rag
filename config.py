@@ -19,6 +19,8 @@ class Settings(BaseSettings):
     QDRANT_API_KEY: str
     QDRANT_COLLECTION_NAME: str
     HUGGING_FACE_TOKEN:str
+    CHAT_HF_MODEL: str
+    JSON_HF_MODEL: str
 
     # Pydantic v2 config
     model_config = SettingsConfigDict(

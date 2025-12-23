@@ -79,3 +79,5 @@ def clear_chat_history(userId: str) -> bool:
             print(f"Error clearing chat history for user {userId}: {e}")
             return False
     return False
+
+DEFAULT_FIREBASE_FILTER = {'isQueryToAppFinanceRelated': False}
