@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 from langchain_core.output_parsers import PydanticOutputParser
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Literal
 from pydantic import BaseModel, Field, field_validator, model_validator
 from datetime import datetime
 
@@ -42,6 +42,11 @@ class FirestoreTransactionQuery(BaseModel):
             "If True → Firestore search will be executed.\n"
             "If False → The query will be answered by another LLM without Firestore."
         )
+    )
+
+    operationType: Literal['READ', "CREATE", "UPDATE", "DELETE"] = Field(
+        default='READ',
+        description="Type of operation being performed"
     )
 
     @field_validator("month")

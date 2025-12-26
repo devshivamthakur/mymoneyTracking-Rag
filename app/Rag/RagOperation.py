@@ -72,6 +72,7 @@ def generateFirebaseFilter(query: str):
 
 async def rag_query_stream(query: str, user: str, sessionId: str|None):  
     filters = generateFirebaseFilter(query)
+    print(filters)
     chat_model = ChatHuggingFace(llm=llm_endpoint)
     params = {}
     history:List[BaseMessage] = []
