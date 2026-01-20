@@ -1,42 +1,23 @@
 from app.FirebaseOperations import query_firestore_generic_extended
-from langchain_huggingface import HuggingFaceEndpoint, ChatHuggingFace
 from config import settings
 from langchain_core.prompts import PromptTemplate
-import aiohttp
-import ssl
 from app.Rag.OutputModal import pyOutPutParser2
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder, HumanMessagePromptTemplate
 from langchain_core.messages import SystemMessage, HumanMessage, BaseMessage
 from typing import List
 from app.Rag.Ragutility import load_messages_jsonl, clear_chat_history, DEFAULT_FIREBASE_FILTER
-ssl_context = ssl.create_default_context()
-ssl_context.check_hostname = False
-ssl_context.verify_mode = ssl.CERT_NONE
-
-session = aiohttp.ClientSession(connector=aiohttp.TCPConnector(ssl=ssl_context))
-
-llm_endpoint = HuggingFaceEndpoint(
-        repo_id=settings.CHAT_HF_MODEL,
-        task="text-generation",
-        temperature=0,
-        huggingfacehub_api_token=settings.HUGGING_FACE_TOKEN,
-        streaming=True,
-        client=session,
-        max_new_tokens=250,
-    )   
+from langchain_openai import ChatOpenAI
 
 def generateFirebaseFilter(query: str):
     try:
-        llm_endpoint = HuggingFaceEndpoint(
-        repo_id=settings.JSON_HF_MODEL,  # Updated to top-performing model for structured output
-        task="text-generation",
-        temperature=0.3,     # Lower temperature for more deterministic/JSON-compliant output
-        top_p=0.95,          # Optional: keep output focused
-        huggingfacehub_api_token=settings.HUGGING_FACE_TOKEN,
-        client=session,
-        return_full_text=True
+        jsonLLm = ChatOpenAI(
+            model=settings.json_model,
+            api_key=settings.OPENROUTER_API_KEY,
+            base_url=settings.base_url,
+            temperature=0.3,     
         )
+
         prompt = PromptTemplate(
             template="""
     You convert natural language into a structured Firestore query filter.
@@ -57,8 +38,7 @@ def generateFirebaseFilter(query: str):
             partial_variables={"format_ins": pyOutPutParser2.get_format_instructions()}
         )
 
-        chat_model = ChatHuggingFace(llm=llm_endpoint)
-        chain = prompt | chat_model | pyOutPutParser2
+        chain = prompt | jsonLLm | pyOutPutParser2
         result = chain.invoke({"query": query})
 
         filter = result.dict()
@@ -72,8 +52,13 @@ def generateFirebaseFilter(query: str):
 
 async def rag_query_stream(query: str, user: str, sessionId: str|None):  
     filters = generateFirebaseFilter(query)
-    print(filters)
-    chat_model = ChatHuggingFace(llm=llm_endpoint)
+    chat_model = ChatOpenAI(
+            model=settings.json_model,
+            api_key=settings.OPENROUTER_API_KEY,
+            base_url=settings.base_url,
+            temperature=0.3,   
+            streaming=True
+        )
     params = {}
     history:List[BaseMessage] = []
     if(sessionId):
