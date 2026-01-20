@@ -30,6 +30,9 @@ def generateFirebaseFilter(query: str):
     2. Convert it into a structured Firestore filter object.
     5. If no month is detected → set isAllData = True
     6. Output only the structure required by the parser.
+    7. Detect finance intent.
+    8. Extract month if present.
+    9. Output strictly in required JSON format.
 
     formate instruction to follow
     {format_ins}
