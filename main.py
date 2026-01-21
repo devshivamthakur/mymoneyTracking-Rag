@@ -21,6 +21,5 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-ssl_ctx = ssl.create_default_context(cafile=certifi.where())
 app.include_router(router)
 logger = logging.getLogger('uvicorn.error')

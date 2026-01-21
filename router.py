@@ -36,11 +36,10 @@ async def getUserTransactions(user = Depends(get_current_user)):
 
 @router.post("/chat/")
 async def chat_endpoint(body:chatStreamRequest, user = Depends(get_current_user)):
-    print(body)
-
     stream = await rag_query_stream(body.query, body.userId, body.session_id)
     human_msg = HumanMessage(content=body.query)
     ai_buffer = ""
+    
     async def event_gen():
         nonlocal ai_buffer
         response = json.dumps({"type": "metaInfo", "sessionId": str(uuid.uuid1())})
@@ -58,34 +57,6 @@ async def chat_endpoint(body:chatStreamRequest, user = Depends(get_current_user)
         yield "\n\n"
     return EventSourceResponse(event_gen(), media_type="text/event-stream")
 
-
-# 1. Define an async generator function
-async def event_generator():
-    import asyncio
-
-    # Simulated LLM output — tokenized manually for demo
-    tokens = [
-        "This", " ", "is", " ", "a", " ", "real-time", " ", 
-        "LangChain-style", " ", "response.", "\n\n",
-        "Here", " ", "is", " ", "a", " ", "Markdown", " ", "table:", "\n\n",
-        "| Name | Age | Role |\n",
-        "|------|-----|------|\n",
-        "| Alice | 30 | Engineer |\n",
-        "| Bob   | 25 | Designer |\n",
-        "| Carol | 28 | Manager |\n",
-        "\n",
-        "End", " ", "of", " ", "demo."
-    ]
-
-    for token in tokens:
-        # Preserve spaces with &nbsp; for HTML rendering
-        content = token
-        if token == "":
-            content = token.replace(" ", "&nbsp;")
-
-        response = json.dumps({"type": "content", "content": content})
-        yield f"{response}"
-        await asyncio.sleep(0.05)  # fast, real-time feel
 
 
 
