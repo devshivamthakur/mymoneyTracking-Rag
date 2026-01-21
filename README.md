@@ -169,18 +169,3 @@ Key packages:
 - `sse-starlette` - Server-Sent Events
 - `pydantic` - Data validation
 
-## 📄 License
-
-[Add your license information here]
-
-## 👤 Author
-
-[Add author information here]
-
-## 🤝 Contributing
-
-[Add contribution guidelines here]
-
----
-
-For more information or issues, please visit the repository or contact the development team.
