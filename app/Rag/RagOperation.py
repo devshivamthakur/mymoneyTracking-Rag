@@ -95,6 +95,9 @@ async def rag_query_stream(query: str, user: str, sessionId: str|None):
                 "- Keep the response professional and clear\n"
                 "- All amounts are in Indian Rupees (₹)\n"
                 "- Only provide meaningful responses\n"
+                "- If no relevant data, respond with: 'No relevant expense data found for your query.'\n"
+                "- you are allowed to perform only read operations on the data provided.\n"
+                " if the user ask other then read operation respond with: 'Sorry, I can only help with analyzing expenses data.'\n"
             )
         ),
         

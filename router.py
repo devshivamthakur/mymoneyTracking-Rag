@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Request
 from app.Validator import authUser, refreshTokenRequest, chatStreamRequest
 from app.auth import jwt_bearer, get_current_user, validate_refersh_token
 from app.FirebaseOperations import validate_user, get_user_info
@@ -9,10 +9,15 @@ from langchain_core.messages import AIMessage, HumanMessage, BaseMessage
 import json
 from app.Rag.Ragutility import save_messages_jsonl
 import uuid
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+
+limiter = Limiter(key_func=get_remote_address)
 router = APIRouter(prefix="/api/v1/user", tags=["User"])
 
 @router.post("/auth/")
-async def auth_user(user: authUser):
+@limiter.limit("5/minute")
+async def auth_user(request: Request, user: authUser):
     if not user.userId:
         raise HTTPException(status_code=400, detail="User ID is required.")
     tokens = validate_user(user.userId)
@@ -20,22 +25,25 @@ async def auth_user(user: authUser):
     return {"message": "User authenticated successfully.", "tokens": tokens}
 
 @router.get("/info/")
-async def getUserInfo(user = Depends(get_current_user)):
+@limiter.limit("5/minute")
+async def getUserInfo(request: Request,user = Depends(get_current_user)):
     userInfo = get_user_info(user)
     return {"data": userInfo, "message": "User info retrieved successfully."}
 
 @router.post("/refresh_token/")
-async def refresh_token(body: refreshTokenRequest):
+async def refresh_token(request: Request,body: refreshTokenRequest):
     tokens = validate_refersh_token(body.refresh_token)
     return {"message": "Token refreshed successfully.", "tokens": tokens}
 
 @router.get("/transactions/")
-async def getUserTransactions(user = Depends(get_current_user)):
+@limiter.limit("5/minute")
+async def getUserTransactions(request: Request,user = Depends(get_current_user)):
     transactions = get_transactions(user)
     return {"data": transactions, "message": "User transactions retrieved successfully."}
 
 @router.post("/chat/")
-async def chat_endpoint(body:chatStreamRequest, user = Depends(get_current_user)):
+@limiter.limit("5/minute")
+async def chat_endpoint(request: Request,body:chatStreamRequest, user = Depends(get_current_user)):
     stream = await rag_query_stream(body.query, body.userId, body.session_id)
     human_msg = HumanMessage(content=body.query)
     ai_buffer = ""
