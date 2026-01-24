@@ -1,118 +1,57 @@
-from app.FirebaseOperations import query_firestore_generic_extended
+from unittest import result
+from app.Rag.Prompt import SYSTEM_PROMPT
+from app.Rag.Tools import firestore_query_tool, get_current_date_tool
 from config import settings
-from langchain_core.prompts import PromptTemplate
-from app.Rag.OutputModal import pyOutPutParser2
-from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder, HumanMessagePromptTemplate
-from langchain_core.messages import SystemMessage, HumanMessage, BaseMessage
-from typing import List
 from app.Rag.Ragutility import load_messages_jsonl, clear_chat_history, DEFAULT_FIREBASE_FILTER
+from langchain.agents import create_agent
+from langchain.agents.middleware import wrap_tool_call
+from langchain_core.messages import HumanMessage
 from langchain_openai import ChatOpenAI
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.messages import SystemMessage
+from typing import List
+from langchain_core.messages import BaseMessage
 
-def generateFirebaseFilter(query: str):
-    try:
-        jsonLLm = ChatOpenAI(
-            model=settings.json_model,
-            api_key=settings.OPENROUTER_API_KEY,
-            base_url=settings.base_url,
-            temperature=0.3,     
-        )
+llm = ChatOpenAI(
+    model=settings.json_model,
+    api_key=settings.OPENROUTER_API_KEY,
+    base_url=settings.base_url,
+    temperature=0.3,
+    streaming=True
+)
 
-        prompt = PromptTemplate(
-            template="""
-    You convert natural language into a structured Firestore query filter.
+agent = create_agent(
+    model=llm,
+    tools=[firestore_query_tool, get_current_date_tool],
+    system_prompt=SYSTEM_PROMPT
+)
 
-    User query:
-    {query}
+def get_chat_history(user: str, sessionId: str | None) -> List[BaseMessage]:
+    """
+    Loads chat history only if sessionId exists.
+    Clears history for a new session.
+    """
+    if sessionId:
+        return load_messages_jsonl(user)
 
-    Your job:
-    1. Interpret the user query.
-    2. Convert it into a structured Firestore filter object.
-    5. If no month is detected → set isAllData = True
-    6. Output only the structure required by the parser.
-    7. Detect finance intent.
-    8. Extract month if present.
-    9. Output strictly in required JSON format.
+    clear_chat_history(user)
+    return []
 
-    formate instruction to follow
-    {format_ins}
-    """,
-            input_variables=["query"],
-            partial_variables={"format_ins": pyOutPutParser2.get_format_instructions()}
-        )
 
-        chain = prompt | jsonLLm | pyOutPutParser2
-        result = chain.invoke({"query": query})
+async def rag_stream_single_invoke(
+    query: str,
+    user: str,
+    sessionId: str | None
+):
+    history = get_chat_history(user, sessionId)
 
-        filter = result.dict()
+    history.append(HumanMessage(content=f"{query}, userId: {user}"))
 
-        if 'isQueryToAppFinanceRelated' in filter:
-            return filter
-        return DEFAULT_FIREBASE_FILTER 
-    
-    except Exception as e:
-        return DEFAULT_FIREBASE_FILTER
-
-async def rag_query_stream(query: str, user: str, sessionId: str|None):  
-    filters = generateFirebaseFilter(query)
-    chat_model = ChatOpenAI(
-            model=settings.json_model,
-            api_key=settings.OPENROUTER_API_KEY,
-            base_url=settings.base_url,
-            temperature=0.3,   
-            streaming=True
-        )
-    params = {}
-    history:List[BaseMessage] = []
-    if(sessionId):
-        history = load_messages_jsonl(user)
-    else:
-        clear_chat_history(user)    
-
-    finalPrompt = ChatPromptTemplate.from_messages([
-        MessagesPlaceholder(variable_name='chat_history'),
-    ])
-
-    if (filters['isQueryToAppFinanceRelated']):
-        context = query_firestore_generic_extended(user, filters)
-        params = {
-            'context': context,
-            "question": query,
-            'chat_history': history
-        }
-        finalPrompt = ChatPromptTemplate.from_messages([
-        SystemMessage(
-            content=(
-                "You are a knowledgeable finance assistant helping users analyze their expenses "
-                "and manage finances effectively.\n\n"
-                "You are given a list of user expenses in JSON format. Use the data to provide "
-                "detailed and actionable insights. Format your response using markdown.\n\n"
-                "If the context is empty or insufficient, return only an informational message.\n"
-                "Do NOT infer or fabricate details.\n\n"
-                "Instructions:\n"
-                "- Highlight unusual or significant expenses\n"
-                "- Suggest ways to optimize spending or save money\n"
-                "- Keep the response professional and clear\n"
-                "- All amounts are in Indian Rupees (₹)\n"
-                "- Only provide meaningful responses\n"
-                "- If no relevant data, respond with: 'No relevant expense data found for your query.'\n"
-                "- you are allowed to perform only read operations on the data provided.\n"
-                " if the user ask other then read operation respond with: 'Sorry, I can only help with analyzing expenses data.'\n"
-            )
-        ),
-        
-        MessagesPlaceholder(variable_name="chat_history"),
-
-        HumanMessagePromptTemplate.from_template(
-            "Expenses data: {context}\n\nUser question: {question}"
-        )
-        ])
-    else:
-        finalPrompt.append(('human','{question}'))
-        params = {
-            "question": query,
-            'chat_history': history
-        }
-
-    chain = finalPrompt | chat_model | StrOutputParser()
-    return chain.astream(params)
+    return agent.astream({
+        "messages": history,
+        "user_preferences": {
+            "style": "informal", 
+            "verbosity": "concise"
+            },
+    },stream_mode="messages")

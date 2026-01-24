@@ -46,7 +46,6 @@ def query_firestore_generic_extended(userId: str, query_json: dict):
         .document(userId)
         .collection("monthly_data")
     )
-
     month = query_json.get("month")
     isAllData = query_json.get("isAllData", False)
     filters = {}
@@ -125,6 +124,7 @@ def query_firestore_generic_extended(userId: str, query_json: dict):
         return True
 
     filtered = []
+
     for t in transactions:
         ok = True
         for field, cond in filters.items():
